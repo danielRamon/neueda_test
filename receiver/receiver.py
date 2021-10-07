@@ -1,6 +1,7 @@
 import os
 import socket
-from cryptography.fernet import Fernet
+import pickle
+from cryptography.fernet import Fernet, InvalidToken
 
 secret_key = "./secret.key"
 
@@ -21,7 +22,10 @@ def receiving_xml():
     client_socket, address = soc.accept()
     print(f"[+] {address} is connected.")
     filename = client_socket.recv(buffer_size)
-    filename = os.path.basename(decrypt_message(filename).decode())
+    if filename:
+        filename = os.path.basename(decrypt_message(filename).decode())
+    else:
+        return
 
     message_complete = b""
     try:
@@ -34,8 +38,23 @@ def receiving_xml():
         client_socket.close()
 
     with open(f"./xml_file/{filename}", "wb") as f:
-        f.write(decrypt_message(message_complete))
-        print(f"{filename} has been received")
+        try:
+            f.write(decrypt_message(message_complete))
+            print(f"{filename} has been received")
+        except TypeError:
+            print("WARNING: Something was wrong with the message")
+
+def sync_sender():
+
+    buffer_size = 4096
+    host = "sender"
+    port = 5001
+
+    soc = socket.socket()
+    print(f"[+] Connecting to {host}:{port}")
+    soc.connect((host, port))
+    print("[+] Connected.")
+    soc.sendall(pickle.dumps(os.listdir("./xml_file")))
 
 
 def decrypt_message(encrypted_message):
@@ -43,16 +62,22 @@ def decrypt_message(encrypted_message):
     It decrypt a message using a secret key.
     :param encrypted_message: Message to decrypt
     :type encrypted_message: bytes
-    :return:
+    :return: None
     """
     global secret_key
-    key = open(secret_key, "rb").read()
-    f = Fernet(key)
-    decrypted_message = f.decrypt(encrypted_message)
+    try:
+        key = open(secret_key, "rb").read()
+        f = Fernet(key)
+        decrypted_message = f.decrypt(encrypted_message)
 
-    return decrypted_message
+        return decrypted_message
+    except InvalidToken:
+        print("WARNING: Something went wrong with token")
+        return None
+
 
 
 if __name__ == "__main__":
     while True:
+        sync_sender()
         receiving_xml()
