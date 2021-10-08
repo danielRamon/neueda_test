@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 secret_key = "./secret.key"
 json_file_path = "./json_file"
 xml_file_path = "./xml_file"
-xml_encrypted_path = "."
+xml_encrypted_path = "./encryption"
 
 
 def send_xml(file_xml):
@@ -22,22 +22,46 @@ def send_xml(file_xml):
     host = "receiver"
     port = 5000
 
-    soc = socket.socket()
-    print(f"[+] Connecting to {host}:{port}")
-    soc.connect((host, port))
-    print("[+] Connected.")
-    if file_xml:
-        soc.send(encrypt_message(str(file_xml).encode()))
-        with open(file_xml, "rb") as f:
+    message_complete = b""
+
+    with socket.socket() as soc:
+        print(f"[+] Connecting to {host}:{port}")
+        try:
+            soc.connect((host, port))
+            print("[+] Connected.")
+            if file_xml:
+                soc.send(encrypt_message(str(file_xml).encode()))
+                with open(file_xml, "rb") as f:
+                    while True:
+                        bytes_read = f.read(buffer_size)
+                        if not bytes_read:
+                            soc.sendall(bytes_read)
+                            print(f"[+] File {file_xml} sended.")
+                            break
+                        soc.sendall(bytes_read)
+                        print(f"[+] Sending {file_xml}.")
+            else:
+                soc.sendall(b"None")
+            print("[+] Waiting XML list.")
+
             while True:
-                bytes_read = f.read(buffer_size)
-                if not bytes_read:
-                    print(f"[+] File {file_xml} sended.")
+                bytes_read = soc.recv(buffer_size)
+                if len(bytes_read) < buffer_size:
+                    message_complete += bytes_read
+                    print("[+] XML list received.")
                     break
-                soc.sendall(bytes_read)
-                print(f"[+] Sending {file_xml}.")
-    else:
-        soc.sendall(b"")
+                message_complete += bytes_read
+            if message_complete:
+                receiver_file = pickle.loads(message_complete)
+            else:
+                receiver_file = []
+            sender_file = os.listdir(xml_file_path)
+            for file in sender_file:
+                if file not in receiver_file and file.endswith(".xml"):
+                    return create_encryption(f"{xml_file_path}/{file}")
+        except TimeoutError:
+            pass
+        return None
 
 
 def sync_receiver():
@@ -47,20 +71,29 @@ def sync_receiver():
     server_port = 5001
     buffer_size = 4096
 
-    soc = socket.socket()
-    soc.bind((server_host, server_port))
-    soc.listen(5)
-    print(f"[*] Listening as {server_host}:{server_port}")
-    client_socket, address = soc.accept()
-    print(f"[+] {address} is connected.")
-    receiver_file = pickle.loads(client_socket.recv(buffer_size))
-    sender_file = os.listdir(xml_file_path)
+    with socket.socket() as soc:
+        soc.bind((server_host, server_port))
+        soc.listen(5)
+        print(f"[*] Listening as {server_host}:{server_port}")
+        client_socket, address = soc.accept()
+        print(f"[+] {address} is connected.")
+        receiver_file = pickle.loads(client_socket.recv(buffer_size))
+        sender_file = os.listdir(xml_file_path)
 
-    for file in sender_file:
-        if file not in receiver_file and file.endswith(".xml"):
-            return f"{xml_file_path}/{file}"
+        for file in sender_file:
+            if file not in receiver_file and file.endswith(".xml"):
+
+                return f"{xml_file_path}/{file}"
     return None
-
+def create_encryption(file_name):
+    global xml_encrypted_path
+    encryption = ""
+    with open(file_name, "rb") as file_to_encrypt:
+        encryption = encrypt_message(file_to_encrypt.read())
+    encrypted_path = f"{xml_encrypted_path}/{os.path.basename(file_name)}"
+    with open(encrypted_path, "wb") as file_encrypted:
+        file_encrypted.write(encryption)
+    return encrypted_path
 
 def xml_file_sync(folder_path):
     """
@@ -109,6 +142,7 @@ def encrypt_message(message):
 
 
 if __name__ == "__main__":
+    a= ""
     while True:
         json_list = xml_file_sync(json_file_path)
         if json_list:
@@ -118,7 +152,7 @@ if __name__ == "__main__":
                     xml_path = f"{xml_file_path}/{os.path.splitext(os.path.basename(json_element))[0]}.xml"
                     with open(xml_path, "wb") as xml_doc:
                         xml_doc.write(xml_conversion)
-        send_xml(sync_receiver())
+        a = send_xml(a)
 
         #             xml_encrypt_path = f"{xml_encrypted_path}/{os.path.splitext(os.path.basename(json_element))[0]}.xml"
         #             with open(xml_encrypt_path, "wb") as xml_enc:
