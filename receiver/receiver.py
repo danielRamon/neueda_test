@@ -1,9 +1,8 @@
 import os
 import socket
-import pickle
 from cryptography.fernet import Fernet, InvalidToken
 
-secret_key = "./secret.key"
+secret_key = "/var/key/secret.key"
 
 
 def receiving_xml():
@@ -17,57 +16,36 @@ def receiving_xml():
 
     message_complete = b""
 
-    with socket.socket() as soc:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as soc:
         soc.bind((server_host, server_port))
         soc.listen(5)
         print(f"[*] Listening as {server_host}:{server_port}")
         client_socket, address = soc.accept()
-        print(f"[+] {address} is connected.")
-        filename = client_socket.recv(buffer_size)
-        if filename != b"None":
+        with client_socket:
+            print(f"[+] {address} is connected.")
+            filename = client_socket.recv(buffer_size)
+            print("[*]Filename received: " + filename)
             filename = os.path.basename(decrypt_message(filename).decode())
-            print("[+]File received: " + filename)
+            print("[+]Filename decrypted: " + filename)
             while True:
                 bytes_read = client_socket.recv(buffer_size)
-                if len(bytes_read) < buffer_size:
-                    break
-                message_complete += bytes_read
-            with open(f"./xml_file/{filename}", "wb") as f:
-                try:
-                    f.write(decrypt_message(message_complete))
-                    print("[+]Content received: " + filename)
-                except TypeError:
-                    print("WARNING: Something was wrong with the message")
-
-        with open("./list_of_xml", "wb") as list_file:
-            list_file.write(pickle.dumps(os.listdir("./xml_file")))
-        with open("./list_of_xml", "rb") as list_file:
-            while True:
-                bytes_read = list_file.read(buffer_size)
                 if not bytes_read:
-                    print(f"[+] File list of xml sended.")
                     break
                 client_socket.sendall(bytes_read)
-                print(f"[+] Sending list of xml.")
-        os.remove("./list_of_xml")
-
-
-# def sync_sender():
-#
-#     buffer_size = 4096
-#     host = "sender"
-#     port = 5001
-#
-#     with socket.socket() as soc:
-#         print(f"[+] Connecting to {host}:{port}")
-#         soc.connect((host, port))
-#         print("[+] Connected.")
-#         soc.sendall(pickle.dumps(os.listdir("./xml_file")))
+                print(f"[*] Receiving {len(bytes_read)} bytes of {filename}")
+                message_complete += bytes_read
+    with open(f"./xml_file/{filename}", "wb") as f:
+        try:
+            print("[*]Content received: " + filename)
+            f.write(decrypt_message(message_complete))
+            print("[+]Content decrypted: " + filename)
+        except TypeError:
+            print("WARNING: Something was wrong with the message")
 
 
 def decrypt_message(encrypted_message):
     """
-    It decrypt a message using a secret key.
+    It decrypt a message given using a secret key from global secret_key.
     :param encrypted_message: Message to decrypt
     :type encrypted_message: bytes
     :return: None

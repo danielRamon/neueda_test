@@ -1,18 +1,16 @@
 version: '3'
 services:
   receiver:
-    depends_on:
-      - sender
-    links:
-      - "sender:sender"
     build:
       args:
         machinepourpouse: "receiver"
-    command: [ "python", "./receiver.py" ]
+    command: python3 -u ./receiver.py
+    ports:
+      - "5000:5000"
   sender:
+    links:
+      - "receiver:receiver"
     build:
       args:
         machinepourpouse: "sender"
-    command: [ "python", "./sender.py" ]
-
-
+    command: python3 -u ./sender.py
