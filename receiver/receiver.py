@@ -24,7 +24,7 @@ def receiving_xml():
         with client_socket:
             print(f"[+] {address} is connected.")
             filename = client_socket.recv(buffer_size)
-            print("[*]Filename received: " + filename)
+            print("[*]Filename received: " + filename.decode())
             filename = os.path.basename(decrypt_message(filename).decode())
             print("[+]Filename decrypted: " + filename)
             while True:
